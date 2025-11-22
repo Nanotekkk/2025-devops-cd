@@ -1,0 +1,95 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: maven
+    
+    - name: Run unit tests
+      run: ./mvnw test
+
+    - name: Check if documentation builds
+      run: ./mvnw javadoc:javadoc
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Check if app builds with Docker
+      run: docker build -t test-build .
+
+  
+  # Job pour déploiement uniquement sur main
+  deploy:
+    needs: test-and-build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: maven
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Login to DockerHub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ secrets.DOCKER_IMAGE_NAME }}:main
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Deploy to Render
+      run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            ${{ secrets.RENDER_SERVICE_ID }}
+
+    - name: Install Netlify CLI
+      run: npm install netlify-cli -g
+
+
+    - name: JAVA DOC build
+      run: ./mvnw javadoc:javadoc 
+
+    - name: Deploy to Netlify in production
+      run: |
+        netlify deploy --prod \
+          --dir target/reports/apidocs \
+          --auth ${{secrets.NETLIFY_AUTH_TOKEN}} \
+          --site ${{secrets.NETLIFY_SITE_ID}}
+      
+
+
+  
