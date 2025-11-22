@@ -1,4 +1,5 @@
 # Hello!! This is a spring boot app!
+[![CI/CD Pipeline](https://github.com/Nanotekkk/2025-devops-cd/actions/workflows/ci_cd.yml/badge.svg?branch=main)](https://github.com/Nanotekkk/2025-devops-cd/actions/workflows/ci_cd.yml)
 
 This app is simple. It connects to a postgres database and says if the database works.
 
